@@ -16,6 +16,7 @@
     "test:auth": "node scripts/test-auth.js",
     "test:mcp": "node scripts/test-mcp.js",
     "test:verify": "node scripts/test-verify.js",
+    "test:pricing": "node scripts/test-pricing.js",
     "test:all": "node scripts/test-all.js",
     "mcp": "node src/mcp/server.js"
   },

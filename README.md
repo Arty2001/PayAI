@@ -57,7 +57,7 @@ client = Anthropic(
     api_key="unused",                                # PayAI bills the wallet
     default_headers={"x-payai-wallet": "my-agent"},
 )
-client.messages.create(model="claude-3-5-haiku-20241022", max_tokens=256,
+client.messages.create(model="claude-haiku-4-5", max_tokens=256,
                        messages=[{"role": "user", "content": "hello"}])
 ```
 

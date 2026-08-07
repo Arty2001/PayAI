@@ -23,7 +23,7 @@ async function messages() {
       "x-payai-wallet": WALLET,
     },
     body: JSON.stringify({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       max_tokens: 64,
       stream: false,
       messages: [{ role: "user", content: "Reply with exactly: PayAI proxy is working." }],

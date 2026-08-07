@@ -58,7 +58,7 @@ async function ask(account) {
     method: "POST",
     headers,
     body: JSON.stringify({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       max_tokens: 32,
       messages: [{ role: "user", content: "auth check" }],
     }),
@@ -108,7 +108,7 @@ async function main() {
     "x-payai-signature": signature,
   };
   const body = JSON.stringify({
-    model: "claude-3-haiku-20240307",
+    model: "claude-haiku-4-5",
     max_tokens: 32,
     messages: [{ role: "user", content: "replay" }],
   });

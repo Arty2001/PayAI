@@ -89,7 +89,7 @@ const ask = (wallet, body = {}) =>
     method: "POST",
     headers: { "content-type": "application/json", "x-payai-wallet": wallet },
     body: JSON.stringify({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       max_tokens: 64,
       messages: [{ role: "user", content: "regression" }],
       ...body,
@@ -164,7 +164,7 @@ async function main() {
 
     section("policy engine");
     await stopServer(server);
-    server = startServer({ PAYAI_RATE_LIMIT_RPM: "3", PAYAI_ALLOWED_MODELS: "claude-3-haiku-20240307" });
+    server = startServer({ PAYAI_RATE_LIMIT_RPM: "3", PAYAI_ALLOWED_MODELS: "claude-haiku-4-5" });
     await waitForHealth();
 
     const pw = `pol-${Date.now().toString(36)}`;

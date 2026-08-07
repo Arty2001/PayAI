@@ -40,13 +40,40 @@ const MODEL_RATES = {
  * Demo rate: ~$0.005 per call so balance visibly drains on stage. */
 const MIN_REQUEST_MICRO_USD = Number(process.env.PAYAI_MIN_REQUEST_MICRO_USD ?? 5000);
 
-/** Convert $/million-tokens to micro-USD per token. */
+/**
+ * USD per million tokens → micro-USD per token.
+ *
+ * These are the same number, and the conversion is the identity. USDC has 6
+ * decimals, so 1 USD = 1e6 micro-USD; a rate of $R per 1e6 tokens is R/1e6 USD
+ * per token, which is exactly R micro-USD per token. The 1e6 in the price
+ * denominator and the 1e6 in the currency unit cancel.
+ *
+ * Dividing by 1e6 here made the meter read one-millionth of actual cost, which
+ * MIN_REQUEST_MICRO_USD then floored — so every request billed $0.005 no matter
+ * how many tokens it burned, and usage-based pricing never actually ran.
+ */
 function perTokenMicro(ratePerMillion) {
-  return ratePerMillion / 1_000_000;
+  return ratePerMillion;
+}
+
+/**
+ * Callers request an alias (`claude-haiku-4-5`), but providers echo back the
+ * dated snapshot it resolved to (`claude-haiku-4-5-20251001`). Reservation
+ * reads the request, reconciliation reads the response — so without this the
+ * two price against different rows, and a model priced correctly on the way in
+ * lands on `default` on the way out.
+ */
+function resolveRates(model) {
+  if (MODEL_RATES[model]) return MODEL_RATES[model];
+
+  const alias = String(model ?? "").replace(/-\d{8}$/, "");
+  if (alias !== model && MODEL_RATES[alias]) return MODEL_RATES[alias];
+
+  return MODEL_RATES.default;
 }
 
 export function getModelRates(model = "default") {
-  const rates = MODEL_RATES[model] ?? MODEL_RATES.default;
+  const rates = resolveRates(model);
   return {
     inputMicro: perTokenMicro(rates.input),
     outputMicro: perTokenMicro(rates.output),

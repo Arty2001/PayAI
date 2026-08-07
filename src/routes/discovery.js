@@ -52,14 +52,17 @@ function manifest() {
         endpoint: `${config.publicUrl}/api/wallet/{walletId}/fund`,
       },
       rates: Object.fromEntries(
-        ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022", "gpt-4o-mini", "gpt-4o"].map(
+        ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5", "gpt-4o-mini", "gpt-4o"].map(
           (model) => {
+            // micro-USD per token is numerically the same as USD per million
+            // tokens (USDC's 6 decimals cancel the price denominator), so this
+            // is a relabel, not a conversion.
             const { inputMicro, outputMicro } = getModelRates(model);
             return [
               model,
               {
-                inputUsdPerMillionTokens: inputMicro * 1_000_000,
-                outputUsdPerMillionTokens: outputMicro * 1_000_000,
+                inputUsdPerMillionTokens: inputMicro,
+                outputUsdPerMillionTokens: outputMicro,
               },
             ];
           },

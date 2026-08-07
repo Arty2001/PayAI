@@ -18,7 +18,7 @@ import { z } from "zod";
 
 const PROXY_URL = process.env.PAYAI_PROXY_URL ?? "http://localhost:4020";
 const WALLET = process.env.PAYAI_WALLET ?? "mcp-agent";
-const DEFAULT_MODEL = process.env.PAYAI_MCP_MODEL ?? "claude-3-5-haiku-20241022";
+const DEFAULT_MODEL = process.env.PAYAI_MCP_MODEL ?? "claude-haiku-4-5";
 
 function walletHeaders() {
   const headers = { "content-type": "application/json", "x-payai-wallet": WALLET };
