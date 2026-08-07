@@ -119,6 +119,25 @@ const ask = (wallet, body = {}) =>
 
 const balance = async (wallet) => (await json(`${BASE}/api/wallet/${encodeURIComponent(wallet)}`)).body;
 
+/**
+ * A minimal OpenAI-compatible upstream that answers in SSE chunks and reports
+ * usage in a final frame, so the proxy's streaming path runs for real.
+ */
+async function startFakeStreamingUpstream() {
+  const { createServer } = await import("node:http");
+  const server = createServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+    const chunk = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+    chunk({ id: "x", model: "gpt-4o-mini", choices: [{ delta: { content: "hello" }, index: 0 }] });
+    chunk({ id: "x", model: "gpt-4o-mini", choices: [{ delta: {}, finish_reason: "stop", index: 0 }] });
+    chunk({ id: "x", model: "gpt-4o-mini", choices: [], usage: { prompt_tokens: 11, completion_tokens: 7 } });
+    res.write("data: [DONE]\n\n");
+    res.end();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return { port: server.address().port, close: () => server.close() };
+}
+
 async function main() {
   cleanDb();
   let server = startServer();
@@ -195,6 +214,44 @@ async function main() {
     const codes = [];
     for (let i = 0; i < 5; i += 1) codes.push((await ask(pw)).status);
     check("rate limit returns 429", codes.includes(429), codes.join(","));
+
+    section("streamed responses are charged");
+    // The mock provider writes its body directly and finalizes synchronously,
+    // so it never exercises pipeUpstreamStream - the path a real provider takes.
+    // A streamed call there once billed $0.00: 'close' fired before usage was
+    // parsed, the safety-net refund marked the request settled, and the real
+    // charge silently became a no-op. Every streamed call was free. This stands
+    // up a fake SSE upstream so that path is covered without a provider key.
+    const upstream = await startFakeStreamingUpstream();
+    await stopServer(server);
+    server = startServer({
+      OPENAI_API_KEY: "test-key",
+      OPENAI_BASE_URL: `http://127.0.0.1:${upstream.port}`,
+    });
+    await waitForHealth();
+
+    const sw = `stream-${Date.now().toString(36)}`;
+    const streamed = await json(`${BASE}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-payai-wallet": sw },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 64,
+        stream: true,
+        messages: [{ role: "user", content: "stream" }],
+      }),
+    });
+    check("streamed request succeeds", streamed.status === 200, `got ${streamed.status}`);
+
+    await new Promise((r) => setTimeout(r, 400));
+    const afterStream = await balance(sw);
+    check(
+      "a streamed call is actually charged",
+      afterStream.totalSpentMicroUsd > 0,
+      `spent ${afterStream.totalSpentMicroUsd} micro-USD - 0 means the refund beat the charge`,
+    );
+    check("streamed call leaves no hold", afterStream.heldUsd === 0, `got ${afterStream.heldUsd}`);
+    upstream.close();
 
     section("persistence across restart");
     const survivor = `persist-${Date.now().toString(36)}`;

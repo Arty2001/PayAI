@@ -22,7 +22,8 @@
     "test:all": "node scripts/test-all.js",
     "mcp": "node src/mcp/server.js",
     "demo": "node scripts/demo.js call",
-    "demo:pay": "node scripts/demo.js pay"
+    "demo:pay": "node scripts/demo.js pay",
+    "preflight": "node scripts/preflight.js"
   },
   "engines": {
     "node": ">=18"

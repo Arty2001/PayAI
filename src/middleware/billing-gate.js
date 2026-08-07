@@ -77,8 +77,19 @@ export function createBillingGate({ provider, routeLabel }) {
     };
 
     // Safety net: whatever happens downstream, the hold is never left dangling.
+    //
+    // Deferred by one turn of the event loop on purpose. On a streamed response
+    // the proxy reads usage out of the body *after* piping it to the client, so
+    // 'close' fires before the real charge is recorded. Releasing synchronously
+    // here would mark the request settled and make the subsequent
+    // finalizeBilling() a no-op — the refund would win the race against the
+    // charge, and every streamed call would be free.
+    //
+    // setImmediate runs in the check phase, after promise continuations have
+    // drained, so a legitimate settlement always lands first and this becomes
+    // the no-op instead.
     res.on("close", () => {
-      releaseBilling(req, "response_closed_before_settlement");
+      setImmediate(() => releaseBilling(req, "response_closed_before_settlement"));
     });
 
     next();
