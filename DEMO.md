@@ -133,7 +133,7 @@ Point at the panel: balance `$0.000000`, all marks dark. Say:
 In terminal 3:
 
 ```powershell
-$env:PAYAI_PROXY_URL="https://payai.lanvar.ai"; $env:PAYAI_WALLET="stage"; npm run test:messages
+npm run demo
 ```
 
 While it runs:
@@ -194,14 +194,34 @@ Verifying onchain (PayAI reads the chain through QuickNode)…
 **Copy the tx hash into the Basescan tab.** Show the real transaction. This is
 the single most convincing thing in the demo — do not skip it.
 
-Back to the dashboard: the marks are lit again. Run one more call:
+Back to the dashboard: the marks are lit again.
+
+Now the part that makes it more than a payment demo. **The wallet just locked
+itself.** Run the plain call again — it will fail, on purpose:
 
 ```powershell
-npm run test:messages
+npm run demo
 ```
 
-> "And it's working again. Paid, settled, verified, spending — nobody logged in
-> to anything."
+```
+Request failed (401): This wallet requires proof of ownership.
+```
+
+> "Before I paid, that wallet was just a name — anyone could spend it, and it
+> only ever held five cents of trial credit. The moment real money landed, it
+> bound to the address that paid. Knowing the name isn't enough any more."
+
+Then spend it properly, signed with the same key that funded it:
+
+```powershell
+npm run spend
+```
+
+> "Challenge, sign, spend. Paid, settled, verified onchain, and now locked to
+> one key — and nobody logged in to anything at any point."
+
+**Do not use `npm run demo` after `npm run demo:pay`** unless you are showing
+the 401 deliberately. Once a wallet is funded it needs `npm run spend`.
 
 ### Beat 5 — close (2:35–2:50)
 
@@ -318,6 +338,22 @@ Once a wallet is funded, it binds to the paying address, and spending then needs
 a signature over a single-use nonce. `npm run test:auth` proves it — eight
 checks including that a captured signature can't be replayed.
 
+**"So anyone can just use any wallet id?"**
+Until it has money in it, yes — deliberately. An agent has to be able to start
+with no signup, so naming a wallet is all it takes, and it gets five cents of
+trial credit. The moment a real payment lands, the wallet binds to the address
+that paid and only a signature from that key can spend it. In production an
+agent just uses its own address as the id, and the name and the key become the
+same thing.
+
+**"Can I get locked out of my own wallet?"**
+Yes, and it's worth being straight about it. Ownership goes to the **first**
+address that funds a given name. If you use the name `alice` and never fund it,
+someone else can fund `alice` first and it becomes theirs — you'd get a 401.
+The exposure is only the five cents of trial credit, never real money, and the
+faucet is capped at 500 wallets. Using your address as the wallet id removes the
+problem entirely, because nobody else can pay *from* your address.
+
 **"What if the payment provider lies?"**
 PayAI reads the chain itself through QuickNode and confirms USDC actually
 reached its address, from the real token contract, for at least the credited
@@ -379,10 +415,18 @@ npm start
 # terminal 2 - the tunnel
 & "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel run payai
 
-# terminal 3 - the demo
-npm run demo          # one metered call against the live site
-npm run demo:pay      # top up with real USDC over x402
+# terminal 3 - the demo, in this order
+npm run demo          # metered call - works while the wallet is UNFUNDED
+npm run demo:pay      # top up with real USDC. THIS LOCKS THE WALLET.
+npm run demo          # now 401 - show it deliberately, it proves the lock
+npm run spend         # signed call with the key that paid - works
 ```
+
+**The ordering matters.** `npm run demo` sends the wallet id and nothing else,
+which is fine until real money arrives. After a payment the wallet binds to the
+paying address and needs a signature, which is what `npm run spend` does.
+Running `demo` after `demo:pay` returns 401 - great on stage if you meant it,
+confusing if you didn't.
 
 `npm run demo` uses wallet `stage` by default. To use another:
 
