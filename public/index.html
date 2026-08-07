@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PayAI — Live Balance Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <main class="shell">
+    <header class="hero">
+      <div class="badge">x402 · QuickNode rails</div>
+      <h1>PayAI</h1>
+      <p class="tagline">Pay for Claude &amp; GPT tokens with stablecoin. No API key. No card.</p>
+    </header>
+
+    <section class="panel wallet-panel">
+      <label for="wallet-input">Wallet ID</label>
+      <div class="row">
+        <input id="wallet-input" type="text" placeholder="0x… or Solana address" spellcheck="false" />
+        <button id="connect-btn" class="btn primary">Track</button>
+      </div>
+      <p class="hint">Must match the client header. Example: track <code>a</code> then run <code>$env:PAYAI_WALLET='a'; npm run test:messages</code></p>
+    </section>
+
+    <section class="stats">
+      <article class="stat-card balance-card">
+        <span class="label">Balance</span>
+        <span id="balance-value" class="value">—</span>
+        <span id="balance-sub" class="sub">Connect a wallet</span>
+      </article>
+      <article class="stat-card">
+        <span class="label">Requests</span>
+        <span id="requests-value" class="value">0</span>
+      </article>
+      <article class="stat-card">
+        <span class="label">Total spent</span>
+        <span id="spent-value" class="value">$0.00</span>
+      </article>
+      <article class="stat-card">
+        <span class="label">Top-ups</span>
+        <span id="topup-value" class="value">$0.00</span>
+      </article>
+    </section>
+
+    <section class="panel actions">
+      <button id="fund-btn" class="btn accent" disabled>Top up via x402</button>
+      <button id="simulate-btn" class="btn ghost" disabled>Simulate top-up (demo)</button>
+      <span id="status-pill" class="pill idle">idle</span>
+    </section>
+
+    <section class="panel endpoints">
+      <h2>Proxy endpoints</h2>
+      <div class="endpoint"><code>POST /v1/messages</code><span>Anthropic-compatible</span></div>
+      <div class="endpoint"><code>POST /v1/chat/completions</code><span>OpenAI-compatible</span></div>
+      <p class="hint">Point your tool's base URL here. Header: <code>X-PayAI-Wallet: &lt;address&gt;</code></p>
+    </section>
+
+    <section class="panel feed">
+      <div class="feed-head">
+        <h2>Live activity</h2>
+        <span id="sse-status" class="pill">live off</span>
+      </div>
+      <ul id="event-log"></ul>
+    </section>
+  </main>
+  <script type="module" src="/dashboard.js"></script>
+</body>
+</html>

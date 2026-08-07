@@ -1,0 +1,68 @@
+# PayAI — AI assistant rules
+
+PayAI is an OpenAI/Anthropic-compatible LLM proxy that meters token usage and
+settles it against a prepaid balance funded over x402 (HTTP 402 payments in
+stablecoins). It handles other people's money. Correctness beats cleverness.
+
+## Stack
+
+- Node 22+ (uses `node:sqlite`), ES modules only, no TypeScript
+- Express 4 — it does **not** catch rejected async handlers; wrap them
+- `@x402/core` / `@x402/evm` / `@x402/svm` / `@x402/mcp`, `viem`, `zod`
+- No new dependencies without justification. `node:sqlite` was chosen over
+  better-sqlite3 specifically to avoid a native build step on deploy hosts.
+
+## Money rules — non-negotiable
+
+1. **Every reservation settles exactly once.** `ledger.reserve()` must be
+   followed by exactly one `reconcile()` (real usage) or `release()` (refund).
+   The `res.on("close")` hook in `billing-gate.js` is the backstop — do not
+   remove it, and do not add a code path that assumes it will not fire.
+2. **Balances never go negative.** `reconcile()` clamps and never charges more
+   than was held. An under-estimate is written off, not billed.
+3. **Amounts are integer micro-USD** (6 decimals, matching USDC). Never store or
+   compute balances in floats. Convert at the edges with `usdToMicro` /
+   `microToUsd`.
+4. **A settled payment credits exactly once.** Settlements are keyed on the
+   onchain transaction hash in the `settlements` table. Never credit without
+   going through `ledger.settle()`.
+5. **Never mint credit on a read.** `GET` handlers use `ledger.peek()`, never
+   `getOrCreate()`. A GET that seeds a wallet is an open faucet.
+
+## Availability rules
+
+- **The facilitator is not a hard dependency.** `initX402()` must never throw.
+  If it is unreachable, the server still boots and serves inference, returning
+  plain 402s. A payments outage is not a service outage.
+- **Never `await` an x402 call on a request path without a try/catch.** Building
+  a 402 body talks to the network; an unhandled rejection there crashes the
+  process on the exact path the product exists to serve.
+- **Failing to bind the port must exit non-zero** so a broken deploy fails its
+  health check.
+
+## Security rules
+
+- A wallet id is not proof of ownership. Once a wallet has an `ownerAddress`,
+  spending requires a signature (`wallet-auth.js`). Nonces are single-use.
+- Never add an endpoint that enumerates wallet ids without the admin token.
+- Never log API keys, private keys, signatures, or full payment payloads.
+- `.env` is gitignored and stays that way. `data/` (the SQLite file) too.
+
+## Style
+
+- Comments explain **why**, not what. If a line looks wrong but is correct,
+  say why it is correct. Delete comments that restate the code.
+- Prefer small named functions over inline branching in middleware.
+- Match the surrounding file's idiom; don't introduce a second style.
+- No `console.log` in request paths — it is a per-request cost. `console.error`
+  for genuine faults is fine.
+- JSDoc on exported functions that move money or touch the chain.
+
+## Testing
+
+- `npm run test:all` is the gate. It spawns its own server on a scratch database
+  and must stay at 0 failures.
+- Any change to billing, settlement, or auth needs a test in `scripts/`.
+- Prove behavior by running it. Do not claim a fix works without output showing
+  it working — especially for refund and error paths, which are exactly the
+  paths that look fine until money disappears.
