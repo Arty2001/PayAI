@@ -50,7 +50,14 @@ async function main() {
     const body = await response.json();
     console.error("402 Payment Required — top up wallet:");
     console.error(JSON.stringify(body, null, 2));
-    console.error("\nDemo: curl -X POST", `${PROXY_URL}/api/wallet/${WALLET}/simulate-fund`);
+    // Suggest the route that actually works here. simulate-fund 403s whenever a
+    // pay-to address is configured, which is exactly when you're demoing the
+    // real thing — a hint that fails is worse than no hint.
+    console.error(
+      body.demoMode
+        ? `\nTop up:  curl -X POST ${PROXY_URL}/api/wallet/${WALLET}/simulate-fund`
+        : `\nTop up:  PAYAI_WALLET=${WALLET} npm run pay`,
+    );
     process.exit(1);
   }
 
