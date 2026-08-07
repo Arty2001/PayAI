@@ -1,17 +1,39 @@
 import { config } from "../config.js";
 
 /**
- * Micro-USD cost per token (6 decimal USD, same precision as USDC).
- * Rates derived from public list prices, scaled per token.
+ * USD per million tokens, at provider list prices.
+ *
+ * This table is the meter. A model missing from it bills at `default`, so a
+ * stale table silently under-charges: every entry here was a retired model id
+ * whose rates predated the current lineup, and the old $1/$5 default happened
+ * to match the cheapest model on the menu — meaning every real request lost
+ * money.
+ *
+ * Keep this in sync with the published price list when models ship.
  */
 const MODEL_RATES = {
-  "claude-3-haiku-20240307": { input: 0.25, output: 1.25 },
-  "claude-3-5-haiku-20241022": { input: 0.25, output: 1.25 },
-  "claude-3-5-sonnet-20241022": { input: 3, output: 15 },
-  "claude-3-opus-20240229": { input: 15, output: 75 },
+  // Anthropic
+  "claude-fable-5": { input: 10, output: 50 },
+  "claude-opus-5": { input: 5, output: 25 },
+  "claude-opus-4-8": { input: 5, output: 25 },
+  "claude-opus-4-7": { input: 5, output: 25 },
+  "claude-opus-4-6": { input: 5, output: 25 },
+  // Sonnet 5 has promotional pricing ($2/$10) through 2026-08-31; list rates
+  // are used so the meter doesn't need a dated cutover.
+  "claude-sonnet-5": { input: 3, output: 15 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-haiku-4-5": { input: 1, output: 5 },
+
+  // OpenAI
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
   "gpt-4o": { input: 2.5, output: 10 },
-  default: { input: 1, output: 5 },
+
+  /**
+   * Unknown models bill at the most expensive tier on the menu. An unpriced
+   * model is a revenue leak in one direction only — over-reservation is
+   * refunded by reconcile(), under-charging is unrecoverable.
+   */
+  default: { input: 10, output: 50 },
 };
 
 /** Minimum billable request (micro-USD).
@@ -41,7 +63,7 @@ export function estimatePromptTokens(body, provider) {
 }
 
 export function estimateRequestCostMicro(body, provider) {
-  const model = body.model ?? (provider === "openai" ? "gpt-4o-mini" : "claude-3-5-haiku-20241022");
+  const model = body.model ?? (provider === "openai" ? "gpt-4o-mini" : "claude-sonnet-5");
   const maxTokens = Number(body.max_tokens ?? body.max_completion_tokens ?? 256);
   const { inputMicro, outputMicro } = getModelRates(model);
   const promptTokens = estimatePromptTokens(body, provider);

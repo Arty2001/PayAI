@@ -15,50 +15,60 @@ so this is a rail, not a novelty.
 
 ---
 
-## Open risk #1 — wallet identity is unauthenticated
+## Resolved: wallet identity
 
-This is the largest remaining hole and it is a **design** gap, not a bug I could
-patch without changing the demo flow.
+`x-payai-wallet: alice` used to be the only thing identifying a payer — anyone who
+learned an id could spend the balance.
 
-```
-x-payai-wallet: alice
-```
+Now: when a wallet is funded, the facilitator-attested `settleResult.payer` is
+bound to it as `ownerAddress`. Spending an owned wallet requires a signature over
+a single-use nonce (`POST /api/wallet/:id/challenge` → sign → `x-payai-signature`).
+`PAYAI_WALLET_AUTH=owned` is the default: unfunded faucet wallets stay open so the
+demo works, while anything holding real money is locked to its key.
 
-That header is the only thing identifying a payer. Anyone who learns a wallet id
-can spend that wallet's balance. Today the id is an arbitrary string chosen by the
-caller and never verified against anything.
+Proven by `npm run test:auth` — 8 checks, including that a captured signature
+cannot be replayed and that a different key is rejected as an owner mismatch.
 
-Mitigations already applied: the cross-wallet listing is admin-gated, so ids are no
-longer enumerable from the outside. That reduces discovery, not the underlying
-problem.
+## Resolved: durability
 
-**The real fix**, in rough order of effort:
+The ledger is SQLite (`node:sqlite` — no dependency, no native build step on
+deploy hosts), with balances, per-request receipts, and settlements persisted.
+Restored on boot; in-flight reservations are released rather than stranded.
+`npm run test:all` hard-kills the server mid-suite and asserts balances, request
+history, and receipts all survive.
 
-1. **Derive the wallet id from the settled payer address.** `settleResult.payer` is
-   already returned by the facilitator and is cryptographically attested. Credit
-   *that* address rather than a caller-supplied string, and the wallet id becomes
-   unforgeable for anyone who has ever topped up.
-2. **Challenge/response for spending.** `GET /api/wallet/:id/nonce` → client signs
-   it with the same key → send as `x-payai-signature`. Cheap, standard EIP-191.
-3. **Bearer capability tokens.** On successful settlement, issue a short-lived
-   opaque token scoped to that wallet. Easiest for non-crypto clients, and keeps
-   the signing key out of every request.
+## Resolved: replay protection
 
-Option 1 is the one that fits the architecture — the payer address is already
-flowing through `settleIncomingPayment()`, it just isn't used as identity.
+Settlements are keyed on the onchain transaction hash (falling back to a hash of
+the signed payload when a facilitator settles off-chain) in a `settlements` table
+with a primary-key constraint. A replayed `PAYMENT-SIGNATURE` is rejected rather
+than credited twice.
 
-## Open risk #2 — the ledger is in memory
+## Resolved: trusting the facilitator
 
-`src/store/ledger.js` is a `Map`. A restart or a platform-initiated redeploy wipes
-every balance, including balances people paid real USDC for. Fine for a demo,
-disqualifying for anything else. See "Persistence" below.
+Crediting on `settleResult.success === true` meant taking the facilitator's word
+for a transaction nobody read. Settlements are now verified against the chain
+through QuickNode — confirming that USDC from the canonical token contract
+actually reached the pay-to address, for at least the credited amount.
 
-## Open risk #3 — no replay tracking on settlement
+Verification runs out of band, so a slow node never delays a top-up, and it
+distinguishes `unverifiable` (we could not check) from `failed` (we checked and
+the chain disagrees). Only the latter is an alarm. `npm run test:verify` covers
+16 cases against synthetic receipts, including lookalike token contracts and
+split transfers.
 
-`settleIncomingPayment()` credits the wallet whenever the facilitator reports
-success. It keeps no record of which payment payloads it has already honored, so
-PayAI is trusting the facilitator's nonce handling completely. Storing settled
-`(payer, nonce)` pairs and rejecting repeats is a small change with real value.
+## Still open
+
+- **Faucet economics.** The free starting balance is capped
+  (`PAYAI_MAX_FREE_WALLETS`) but still unauthenticated — a determined caller can
+  cycle wallet ids up to the cap. Binding the faucet to a proof-of-personhood or
+  requiring a nominal payment would close it.
+- **Solana settlements are unverifiable.** The verifier is EVM-only; an SVM
+  settlement is credited on the facilitator's word and marked `unverifiable`.
+- **`unverifiable` is never retried.** Only `pending` rows are re-checked on boot,
+  so a settlement that failed verification because the RPC was down stays that way.
+- **Single-process ledger.** SQLite write-through is correct for one instance;
+  horizontal scaling needs Postgres or a Durable Object.
 
 ---
 
@@ -85,28 +95,27 @@ mysteriously dips during a request.
 
 ## Integrations, roughly by effort
 
-### Near-term, high leverage
+### Shipped
 
-**Monetized MCP server (`@x402/mcp`).** The highest-value move. Expose PayAI's
-proxy as MCP tools where individual tools are marked paid — any Claude Code,
-Cursor, or Claude Desktop agent can then pay per tool call with no API key. This
-flips PayAI from "a proxy you configure" to "a service agents discover and use."
-Cloudflare's Agents SDK has shipped x402+MCP since Sept 2025, so the pattern is
-well-trodden.
+**MCP server** (`src/mcp/server.js`) — `payai_chat`, `payai_wallet`,
+`payai_receipts`. When the wallet is empty, `payai_chat` returns the x402 terms in
+its result body and `_meta`, so an agent can settle and retry without a human.
+(Throwing an `McpError` looks tidier but `McpServer` converts thrown errors into
+`isError` results and discards the structured `data` — the agent would get a
+message and no way to pay.) Exercised by `npm run test:mcp`.
 
-**List in the x402 Bazaar.** The [discovery layer](https://docs.cdp.coinbase.com/x402/bazaar)
-is a semantic index agents search to find paid endpoints — 112+ services across
-11 categories. Being findable is the difference between a demo and a business.
-Listing is metadata, not engineering.
+**Discovery manifest** at `/.well-known/x402` — endpoints, per-model rates,
+top-up terms, and accepted networks, ready to submit to the
+[x402 Bazaar](https://docs.cdp.coinbase.com/x402/bazaar). Submitting it is
+account work, not engineering.
 
-**Persistence.** Swap the `Map` for SQLite (`node:sqlite` is built in, zero deps)
-or Cloudflare D1/Durable Objects. The `Ledger` class is already a clean seam —
-every mutation goes through `credit`/`reserve`/`release`/`reconcile`, so this is a
-contained change.
+**Receipts** — `GET /api/wallet/:id/receipts` returns every charge alongside the
+settlements that funded it, each carrying its transaction hash and verification
+status. This is the thing a centralized credit system structurally cannot offer.
 
-**Real receipts.** `PAYMENT-RESPONSE` already carries the settlement tx. Persist it
-per request and expose `GET /api/wallet/:id/receipts` — a verifiable, onchain-anchored
-spend log. This is something OpenRouter structurally cannot offer.
+**Policy engine** — per-wallet rate limits, rolling hourly budgets, per-request
+cost ceiling, model allowlist, and a `max_tokens` clamp applied *before* cost
+estimation so the reservation and the upstream request agree.
 
 ### Medium
 
