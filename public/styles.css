@@ -390,6 +390,7 @@ main {
 .frame__body { color: var(--paper); overflow-wrap: anywhere; }
 .frame__amount { font-variant-numeric: tabular-nums; }
 
+.frame[data-kind="reply"] .frame__kind  { color: var(--paper); border-color: var(--rule); }
 .frame[data-kind="usage"] .frame__kind  { color: var(--money); border-color: rgba(255, 176, 32, 0.32); }
 .frame[data-kind="top_up"] .frame__kind { color: var(--money); border-color: rgba(255, 176, 32, 0.32); }
 .frame[data-kind="charge"] .frame__kind { color: var(--charge); border-color: rgba(255, 74, 61, 0.45); }

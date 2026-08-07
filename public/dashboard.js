@@ -19,6 +19,7 @@ const el = {
   spent: $("#spent-value"),
   requests: $("#requests-value"),
   owner: $("#owner-value"),
+  send: $("#send-btn"),
   fund: $("#fund-btn"),
   simulate: $("#simulate-btn"),
   note: $("#controls-note"),
@@ -278,6 +279,87 @@ async function watch() {
 
 /* ── Actions ─────────────────────────────────────────────────── */
 
+/** One metered call. Extra headers carry proof of ownership when required. */
+function postMessage(extra = {}) {
+  return fetch("/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-payai-wallet": walletId, ...extra },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5",
+      max_tokens: 64,
+      messages: [{ role: "user", content: "In one short sentence, what is HTTP 402 for?" }],
+    }),
+  });
+}
+
+/**
+ * Prove ownership of a funded wallet.
+ *
+ * Once a wallet has been paid into it belongs to the paying address, and the id
+ * alone stops working. Fetch a single-use nonce, sign it with the same key, and
+ * send both back.
+ */
+async function signChallenge() {
+  if (!window.ethereum) {
+    throw new Error("This wallet is locked to the key that funded it. Connect a browser wallet to sign.");
+  }
+  const [address] = await window.ethereum.request({ method: "eth_requestAccounts" });
+  const res = await fetch(`/api/wallet/${encodeURIComponent(walletId)}/challenge`, { method: "POST" });
+  const { nonce, message } = await res.json();
+  const signature = await window.ethereum.request({
+    method: "personal_sign",
+    params: [message, address],
+  });
+  return { "x-payai-nonce": nonce, "x-payai-signature": signature };
+}
+
+async function sendCall() {
+  if (!walletId) {
+    el.input.focus();
+    return;
+  }
+
+  const label = el.send.textContent;
+  el.send.disabled = true;
+  el.send.textContent = "Sending…";
+  delete el.note.dataset.tone;
+  el.note.textContent = "";
+
+  try {
+    let res = await postMessage();
+
+    // 401 means the wallet is owned. Sign and retry once.
+    if (res.status === 401) {
+      el.note.textContent = "Wallet is locked — signing…";
+      res = await postMessage(await signChallenge());
+    }
+
+    const body = await res.json().catch(() => ({}));
+
+    if (res.status === 402) {
+      addFrame("charge", "402", body.message ?? "payment required");
+      el.note.dataset.tone = "charge";
+      el.note.textContent = "Out of credit. Top up to keep going.";
+    } else if (!res.ok) {
+      addFrame("charge", "error", body.error?.message ?? body.message ?? `HTTP ${res.status}`);
+      el.note.dataset.tone = "charge";
+      el.note.textContent = `Request failed (${res.status}).`;
+    } else {
+      const text = body.content?.find((b) => b.type === "text")?.text ?? "(no text)";
+      addFrame("reply", "reply", text.length > 150 ? `${text.slice(0, 150)}…` : text);
+      el.note.textContent = "";
+    }
+
+    await fetchWallet(walletId);
+  } catch (err) {
+    el.note.dataset.tone = "charge";
+    el.note.textContent = err.message;
+  } finally {
+    el.send.disabled = false;
+    el.send.textContent = label;
+  }
+}
+
 async function topUp() {
   if (!walletId) return;
   el.note.textContent = "Waiting for signature…";
@@ -339,6 +421,7 @@ async function demoCredit() {
 
 el.watch.addEventListener("click", watch);
 el.input.addEventListener("keydown", (e) => e.key === "Enter" && watch());
+el.send.addEventListener("click", sendCall);
 el.fund.addEventListener("click", topUp);
 el.simulate.addEventListener("click", demoCredit);
 el.copy.addEventListener("click", async () => {
