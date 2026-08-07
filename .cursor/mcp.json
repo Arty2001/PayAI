@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "payai": {
+      "command": "node",
+      "args": ["src/mcp/server.js"],
+      "env": {
+        "PAYAI_PROXY_URL": "https://payai.lanvar.ai",
+        "PAYAI_WALLET": "cursor",
+        "PAYAI_MCP_MODEL": "claude-haiku-4-5"
+      }
+    }
+  }
+}

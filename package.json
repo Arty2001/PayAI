@@ -20,7 +20,9 @@
     "test:verify:live": "node scripts/test-verify-live.js",
     "test:pricing": "node scripts/test-pricing.js",
     "test:all": "node scripts/test-all.js",
-    "mcp": "node src/mcp/server.js"
+    "mcp": "node src/mcp/server.js",
+    "demo": "node scripts/demo.js call",
+    "demo:pay": "node scripts/demo.js pay"
   },
   "engines": {
     "node": ">=18"

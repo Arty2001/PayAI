@@ -214,6 +214,75 @@ Stop talking. Let them ask.
 
 ---
 
+## 3b. The encore: a coding agent that pays for itself
+
+If you have time after the main run, or if a judge asks "so how would an agent
+actually use this," show PayAI as an MCP server. Your editor's agent calls a
+paid tool, and the meter on the dashboard ticks down while they watch.
+
+Both configs are committed in the repo, pointed at the live site:
+`.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor.
+
+### Claude Code
+
+Project MCP servers need a one-time approval. **Do this before you present** —
+you don't want a permission prompt on stage.
+
+```powershell
+cd C:\Users\athav\Documents\PayAI
+claude
+```
+
+It asks whether to trust the `payai` server from `.mcp.json`. Approve it. Then
+confirm:
+
+```powershell
+claude mcp list      # payai should say Connected, not Pending approval
+```
+
+In a session, `/mcp` lists the three tools. Ask for one by name:
+
+> "Use the payai_chat tool to ask what HTTP 402 is for."
+
+Claude Code calls the tool, PayAI meters it, and a mark goes dark on the
+dashboard. Then:
+
+> "Now call payai_wallet."
+
+It reads back the balance it just spent from.
+
+### Cursor
+
+Cursor picks up `.cursor/mcp.json` from the project. Settings → MCP → enable
+`payai` if it isn't already. Then ask the agent the same thing in Composer.
+
+### What to say
+
+> "That's my editor's agent calling a paid tool. It has no API key for this — it
+> has a wallet. When the wallet runs dry the tool doesn't just fail, it returns
+> the payment terms, and the agent can settle and retry on its own."
+
+Drain the wallet first if you want to show that: the tool returns a
+`payment_required` result carrying the full x402 terms, which is exactly what an
+autonomous agent needs to pay without a human.
+
+### What I could not make work
+
+Routing Claude Code's **own** inference through PayAI —
+`ANTHROPIC_BASE_URL=https://payai.lanvar.ai` plus a wallet header — is
+technically possible and I saw PayAI correctly bill and 402 a real Claude Code
+request. But it was not reliable: on a second run Claude Code answered without
+the request ever reaching PayAI, most likely because this install is
+OAuth-authenticated and doesn't consistently honor the override. It also
+reserves about **$1.64 per turn**, because Claude Code sends a large system
+prompt with a high `max_tokens` — a $0.10 top-up covers zero turns.
+
+Don't demo it. If someone asks whether it's possible, the honest answer is
+"yes, and PayAI meters it correctly, but the client-side override isn't
+dependable enough to put on stage."
+
+---
+
 ## 4. What's on the screen, so you can answer anything
 
 | Element | What it means |
@@ -300,15 +369,34 @@ through that instead.
 
 ## 7. The one-line cheat sheet
 
+Everything below already targets `https://payai.lanvar.ai` — no environment
+setup, nothing to mistype on stage.
+
 ```powershell
-# terminal 1
+# terminal 1 - the app
 npm start
 
-# terminal 2
+# terminal 2 - the tunnel
 & "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel run payai
 
-# terminal 3 — the demo
-$env:PAYAI_PROXY_URL="https://payai.lanvar.ai"; $env:PAYAI_WALLET="stage"
-npm run test:messages     # one call
-npm run pay               # top up with real USDC
+# terminal 3 - the demo
+npm run demo          # one metered call against the live site
+npm run demo:pay      # top up with real USDC over x402
 ```
+
+`npm run demo` uses wallet `stage` by default. To use another:
+
+```powershell
+$env:PAYAI_WALLET="alice"; npm run demo
+```
+
+Drain to 402 in one line:
+
+```powershell
+1..10 | ForEach-Object { npm run demo }
+```
+
+**If a page load or a call returns nothing at all**, the tunnel occasionally
+drops a single request — I saw it three times during testing, always transient.
+Reload or re-run. It is not the app; check `http://127.0.0.1:4020/health` if you
+want to confirm.
