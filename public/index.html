@@ -3,71 +3,116 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PayAI — Live Balance Dashboard</title>
+  <title>PayAI — inference an agent can buy on its own</title>
+  <meta name="description" content="An OpenAI- and Anthropic-compatible proxy that meters tokens and settles them in stablecoin over HTTP 402. No account, no API key." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Azeret+Mono:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="grid-bg"></div>
-  <main class="shell">
-    <header class="hero">
-      <div class="badge">x402 · QuickNode rails</div>
-      <h1>PayAI</h1>
-      <p class="tagline">Pay for Claude &amp; GPT tokens with stablecoin. No API key. No card.</p>
-    </header>
+  <div class="scanline" aria-hidden="true"></div>
 
-    <section class="panel wallet-panel">
-      <label for="wallet-input">Wallet ID</label>
-      <div class="row">
-        <input id="wallet-input" type="text" placeholder="0x… or Solana address" spellcheck="false" />
-        <button id="connect-btn" class="btn primary">Track</button>
+  <header class="rail">
+    <div class="rail__mark">
+      <span class="mark">PayAI</span>
+      <span class="rail__sep" aria-hidden="true"></span>
+      <span class="rail__meta" id="rail-network">x402</span>
+    </div>
+    <div class="rail__status">
+      <span class="lamp" id="lamp" data-state="off" aria-hidden="true"></span>
+      <span id="rail-state">not watching</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="thesis">
+      <h1>Inference an agent<br />can buy on its own.</h1>
+      <p>
+        Point any SDK at this URL and it pays per token in USDC over HTTP 402.
+        No account. No API key. No human.
+      </p>
+    </section>
+
+    <section class="watch" aria-label="Choose a wallet to watch">
+      <label for="wallet-input">Watching</label>
+      <div class="watch__row">
+        <input
+          id="wallet-input"
+          type="text"
+          placeholder="wallet id — any string, or an address"
+          spellcheck="false"
+          autocomplete="off"
+          enterkeyhint="go"
+        />
+        <button id="connect-btn" class="btn btn--solid" type="button">Watch</button>
       </div>
-      <p class="hint">Must match the client header. Example: track <code>a</code> then run <code>$env:PAYAI_WALLET='a'; npm run test:messages</code></p>
     </section>
 
-    <section class="stats">
-      <article class="stat-card balance-card">
-        <span class="label">Balance</span>
-        <span id="balance-value" class="value">—</span>
-        <span id="balance-sub" class="sub">Connect a wallet</span>
-      </article>
-      <article class="stat-card">
-        <span class="label">Requests</span>
-        <span id="requests-value" class="value">0</span>
-      </article>
-      <article class="stat-card">
-        <span class="label">Total spent</span>
-        <span id="spent-value" class="value">$0.00</span>
-      </article>
-      <article class="stat-card">
-        <span class="label">Top-ups</span>
-        <span id="topup-value" class="value">$0.00</span>
-      </article>
-    </section>
+    <div class="panels">
+      <!-- ── Meter ─────────────────────────────────────────────── -->
+      <section class="panel meter" id="meter-panel" data-state="empty" aria-labelledby="meter-head">
+        <div class="panel__head">
+          <h2 id="meter-head">Balance</h2>
+          <span class="tag" id="meter-tag">no wallet</span>
+        </div>
 
-    <section class="panel actions">
-      <button id="fund-btn" class="btn accent" disabled>Top up via x402</button>
-      <button id="simulate-btn" class="btn ghost" disabled>Simulate top-up (demo)</button>
-      <span id="status-pill" class="pill idle">idle</span>
-    </section>
+        <p class="amount" id="balance-value" aria-live="polite">$0.000000</p>
 
-    <section class="panel endpoints">
-      <h2>Proxy endpoints</h2>
-      <div class="endpoint"><code>POST /v1/messages</code><span>Anthropic-compatible</span></div>
-      <div class="endpoint"><code>POST /v1/chat/completions</code><span>OpenAI-compatible</span></div>
-      <p class="hint">Point your tool's base URL here. Header: <code>X-PayAI-Wallet: &lt;address&gt;</code></p>
-    </section>
+        <div class="ticks" id="ticks" role="img" aria-label="Remaining calls"></div>
+        <p class="ticks__legend" id="ticks-legend">Each mark is one paid call at the $0.005 floor.</p>
 
-    <section class="panel feed">
-      <div class="feed-head">
-        <h2>Live activity</h2>
-        <span id="sse-status" class="pill">live off</span>
-      </div>
-      <ul id="event-log"></ul>
+        <dl class="readout">
+          <div><dt>Held</dt><dd id="held-value">$0.000000</dd></div>
+          <div><dt>Spent</dt><dd id="spent-value">$0.000000</dd></div>
+          <div><dt>Calls</dt><dd id="requests-value">0</dd></div>
+          <div><dt>Owner</dt><dd id="owner-value">unclaimed</dd></div>
+        </dl>
+
+        <div class="controls">
+          <button id="fund-btn" class="btn btn--money" type="button" disabled>Top up with USDC</button>
+          <button id="simulate-btn" class="btn btn--quiet" type="button" disabled>Add demo credit</button>
+        </div>
+        <p class="controls__note" id="controls-note"></p>
+      </section>
+
+      <!-- ── Wire ──────────────────────────────────────────────── -->
+      <section class="panel wire" aria-labelledby="wire-head">
+        <div class="panel__head">
+          <h2 id="wire-head">The wire</h2>
+          <span class="tag" id="wire-tag">idle</span>
+        </div>
+
+        <ol class="frames" id="frames" aria-live="polite"></ol>
+
+        <div class="empty" id="wire-empty">
+          <p>Nothing on the wire yet. Watch a wallet, then send it a request:</p>
+          <pre><code id="curl-sample"></code></pre>
+          <button class="btn btn--quiet btn--tiny" id="copy-btn" type="button">Copy</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="endpoints" aria-labelledby="endpoints-head">
+      <h2 id="endpoints-head">Endpoints</h2>
+      <ul>
+        <li><code>POST /v1/messages</code><span>Anthropic Messages — drop-in</span></li>
+        <li><code>POST /v1/chat/completions</code><span>OpenAI Chat Completions — drop-in</span></li>
+        <li><code>GET /api/wallet/:id/receipts</code><span>Spend history, anchored onchain</span></li>
+        <li><code>GET /.well-known/x402</code><span>Discovery manifest for agents</span></li>
+      </ul>
+      <p class="endpoints__note">
+        Identify a wallet with the <code>x-payai-wallet</code> header. Balance runs out, you get a
+        402 carrying machine-readable payment terms — settle them and retry.
+      </p>
     </section>
   </main>
+
+  <footer class="foot">
+    <span>PayAI</span>
+    <span id="foot-origin"></span>
+  </footer>
+
   <script type="module" src="/dashboard.js"></script>
 </body>
 </html>

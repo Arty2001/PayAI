@@ -181,6 +181,13 @@ src/
   mcp/server.js          MCP server exposing paid tools
 ```
 
+## Publishing it
+
+`deploy/cloudflare/` sets PayAI up behind a Cloudflare Tunnel at a public
+hostname — no open port, no certificate. Read that README before deploying:
+`PAYAI_PUBLIC_URL` has to equal the public origin or x402 signatures stop
+matching, and this network needs the tunnel pinned to HTTP/2.
+
 ## What's next
 
 See [IDEAS.md](IDEAS.md) for the integration roadmap and the open architectural

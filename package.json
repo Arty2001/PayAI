@@ -12,10 +12,12 @@
     "test:402": "node scripts/test-402.js",
     "keygen": "node scripts/keygen.js",
     "pay": "node scripts/pay-x402.js",
+    "spend": "node scripts/spend-signed.js",
     "check:quicknode": "node scripts/check-quicknode.js",
     "test:auth": "node scripts/test-auth.js",
     "test:mcp": "node scripts/test-mcp.js",
     "test:verify": "node scripts/test-verify.js",
+    "test:verify:live": "node scripts/test-verify-live.js",
     "test:pricing": "node scripts/test-pricing.js",
     "test:all": "node scripts/test-all.js",
     "mcp": "node src/mcp/server.js"

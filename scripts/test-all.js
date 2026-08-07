@@ -51,6 +51,27 @@ function startServer(extraEnv = {}) {
       PAYAI_MOCK_ANTHROPIC: "true",
       PAYAI_RATE_LIMIT_RPM: "0",
       OPENAI_API_KEY: "",
+
+      // Pin everything the suite asserts on. The server loads .env via dotenv,
+      // which fills in any key the child does not already have — so without
+      // these, a developer's real settlement address or auth mode leaks in and
+      // the suite starts testing their machine instead of the code. An empty
+      // string still counts as "already set", so dotenv leaves it alone.
+      PAYAI_EVM_PAY_TO: "",
+      PAYAI_SVM_PAY_TO: "",
+      PAYAI_DEMO_MODE: "true",
+      PAYAI_WALLET_AUTH: "off",
+      PAYAI_INITIAL_BALANCE_USD: "0.05",
+      PAYAI_MAX_FREE_WALLETS: "500",
+      PAYAI_MAX_SIMULATED_TOPUPS: "10",
+      PAYAI_HOURLY_BUDGET_USD: "0",
+      PAYAI_MAX_REQUEST_USD: "0",
+      PAYAI_ALLOWED_MODELS: "",
+      PAYAI_ADMIN_TOKEN: "",
+      PAYAI_VERIFY_SETTLEMENTS: "false",
+      PAYAI_QUICKNODE_RPC_URL: "",
+      PAYAI_QUICKNODE_X402: "false",
+
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],

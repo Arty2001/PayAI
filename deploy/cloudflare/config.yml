@@ -1,0 +1,32 @@
+# Cloudflare Tunnel — payai.lanvar.ai
+#
+# Publishes the local PayAI server on a public HTTPS hostname without opening a
+# port or holding a certificate. cloudflared dials out to Cloudflare, so the
+# origin stays behind whatever NAT or firewall it is already behind.
+#
+# Copy to ~/.cloudflared/config.yml after `cloudflared tunnel create payai`,
+# replacing <TUNNEL-UUID> with the id that command prints.
+#
+# Install: winget install Cloudflare.cloudflared
+# Run:     cloudflared tunnel run payai
+
+tunnel: <TUNNEL-UUID>
+credentials-file: C:\Users\athav\.cloudflared\<TUNNEL-UUID>.json
+
+# This network drops or mangles QUIC — the tunnel's control stream fails and
+# retries forever on the default transport. HTTP/2 is stable here.
+protocol: http2
+
+# Keep connections open long enough for the SSE balance feed, which holds a
+# response open indefinitely and sends a keepalive comment every 15s.
+originRequest:
+  connectTimeout: 30s
+  # No read timeout: an SSE stream is a long-lived response, not a stalled one.
+  noTLSVerify: false
+  disableChunkedEncoding: false
+
+ingress:
+  - hostname: payai.lanvar.ai
+    service: http://127.0.0.1:4020
+  # Every ingress list must end in a catch-all.
+  - service: http_status:404
