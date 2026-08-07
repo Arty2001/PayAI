@@ -39,6 +39,8 @@ export const config = {
    */
   /** Authenticated QuickNode HTTPS endpoint for the settlement chain. */
   quicknodeRpcUrl: process.env.PAYAI_QUICKNODE_RPC_URL ?? "",
+  /** Which chain that endpoint serves. One URL cannot answer for two chains. */
+  quicknodeRpcNetwork: process.env.PAYAI_QUICKNODE_RPC_NETWORK ?? "eip155:84532",
   /** Pay QuickNode per RPC call over x402 instead of holding an API key. */
   quicknodeX402: process.env.PAYAI_QUICKNODE_X402 === "true",
   quicknodeX402BaseUrl: process.env.PAYAI_QUICKNODE_X402_URL ?? "https://x402.quicknode.com",

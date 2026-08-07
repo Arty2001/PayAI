@@ -49,7 +49,7 @@ export function verificationEnabled() {
  *
  * @returns {Promise<VerificationResult>}
  */
-export async function verifySettlement({ hash, caip2, payTo, expectedMicroUsd }) {
+export async function verifySettlement({ hash, caip2, payTo, expectedMicroUsd, client: injected }) {
   const unverifiable = (error) => ({
     status: "unverifiable",
     blockNumber: null,
@@ -59,12 +59,18 @@ export async function verifySettlement({ hash, caip2, payTo, expectedMicroUsd })
   });
 
   if (!hash) return unverifiable("Facilitator returned no transaction hash");
-  if (!verificationEnabled()) return unverifiable("Onchain verification is not configured");
+  if (!injected && !verificationEnabled()) {
+    return unverifiable("Onchain verification is not configured");
+  }
+
+  // Without a recipient there is nothing to check against, and treating that as
+  // a mismatch would raise a false alarm about a payment that may be fine.
+  if (!payTo) return unverifiable("No pay-to address configured for this network");
 
   const info = networkInfo(caip2);
   if (!info) return unverifiable(`No chain config for network ${caip2}`);
 
-  const client = publicClientFor(caip2);
+  const client = injected ?? publicClientFor(caip2);
   if (!client) return unverifiable(`No RPC available for ${info.name}`);
 
   let receipt = null;

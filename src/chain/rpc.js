@@ -130,6 +130,14 @@ export function publicClientFor(caip2) {
   const mode = rpcMode();
   if (mode === "none") return null;
 
+  // A plain RPC URL serves exactly one chain. Pointing a Base Sepolia endpoint
+  // at a mainnet hash returns "not found", which would be recorded as though
+  // the chain had been consulted. Refuse instead, so the receipt says
+  // "no RPC for this chain" rather than quietly implying a check happened.
+  if (mode === "quicknode-rpc" && info.caip2 !== config.quicknodeRpcNetwork) {
+    return null;
+  }
+
   const cacheKey = `${mode}:${info.caip2}`;
   if (!clients.has(cacheKey)) {
     const transport =
